@@ -70,6 +70,8 @@ public class Main {
         final URLClassLoader jarClassLoader = new URLClassLoader(new URL[]{jarFile.toUri().toURL()}, this.getClass().getClassLoader());
         final Class<?> classToLoad = Class.forName(mainClass, true, jarClassLoader);
         final Method mainMethod = classToLoad.getMethod("main", String[].class);
+
+        System.out.println("Running method '" + mainMethod.getName() + "' from class '" + mainClass + "' in jar file '" + jarFile + "' with arguments '" + launchArgs + "'...");
         mainMethod.invoke(null, (Object) launchArgs.split(" "));
     }
 }
