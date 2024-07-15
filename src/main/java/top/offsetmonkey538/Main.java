@@ -2,24 +2,42 @@ package top.offsetmonkey538;
 
 import org.jetbrains.annotations.NotNull;
 
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import java.util.jar.JarInputStream;
+import java.util.jar.Manifest;
 
 public class Main {
-    public static void main(String[] args) {
-        System.out.println("Loading args files...");
-        final String preLaunchJarArgs = loadArgs("pre-launch.txt");
-        final String actualJarArgs = loadArgs("actual-jar.txt");
-
-
-        runJarFile(preLaunchJarArgs);
-        runJarFile(actualJarArgs);
+    public static void main(String[] args) throws IOException, ClassNotFoundException, InvocationTargetException, NoSuchMethodException, IllegalAccessException {
+        new Main().run();
     }
 
+    private void run() throws IOException, ClassNotFoundException, NoSuchMethodException, InvocationTargetException, IllegalAccessException {
+        final String preLaunchJarString = System.getProperty("preLaunchJar");
+        final String actualJarString = System.getProperty("actualJar");
+
+        if (preLaunchJarString == null) throw new IllegalArgumentException("Property 'preLaunchJar' is null!");
+        if (actualJarString == null) throw new IllegalArgumentException("Property 'actualJar' is null!");
+
+        final Path preLaunchJar = Path.of(preLaunchJarString);
+        final Path actualJar = Path.of(actualJarString);
+
+        if (!Files.exists(preLaunchJar)) throw new IllegalArgumentException("File '" + preLaunchJarString + "' does not exist!");
+        if (!Files.exists(actualJar)) throw new IllegalArgumentException("File '" + actualJar + "' does not exist!");
+
+
+        final String preLaunchJarArgs = System.getProperty("preLaunchJarArgs", "");
+        final String actualJarArgs = System.getProperty("actualJarArgs", "");
+
+        runJarFile(preLaunchJar, preLaunchJarArgs);
+        runJarFile(actualJar, actualJarArgs);
+    }
 
     @NotNull
     private static String loadArgs(final String fileName) {
@@ -32,26 +50,16 @@ public class Main {
         }
     }
 
-    private static void runJarFile(@NotNull String argsFile) {
-        final List<String> args = new ArrayList<>();
-        args.add("java");
-        args.addAll(Arrays.stream(argsFile.split(" ")).map(String::trim).toList());
+    private void runJarFile(@NotNull Path jarFile, @NotNull String launchArgs) throws IOException, ClassNotFoundException, NoSuchMethodException, InvocationTargetException, IllegalAccessException {
+        final JarInputStream jarInputStream = new JarInputStream(new FileInputStream(jarFile.toFile()));
+        final Manifest manifest = jarInputStream.getManifest();
+        jarInputStream.close();
 
-        System.out.println("Starting process with args: " + args);
+        final String mainClass = manifest.getMainAttributes().getValue("Main-Class");
 
-        try {
-            final ProcessBuilder processBuilder = new ProcessBuilder(args);
-            processBuilder.inheritIO();
-
-            final Process process = processBuilder.start();
-
-            process.waitFor();
-            final int exitCode = process.exitValue();
-            if (exitCode != 0) {
-                throw new IOException("Failed to execute jar!");
-            }
-        } catch (final IOException | InterruptedException e) {
-            throw new RuntimeException("Failed to execute jar!", e);
-        }
+        final URLClassLoader jarClassLoader = new URLClassLoader(new URL[]{jarFile.toUri().toURL()}, this.getClass().getClassLoader());
+        final Class<?> classToLoad = Class.forName(mainClass, true, jarClassLoader);
+        final Method mainMethod = classToLoad.getMethod("main", String[].class);
+        mainMethod.invoke(null, (Object) launchArgs.split(" "));
     }
 }
