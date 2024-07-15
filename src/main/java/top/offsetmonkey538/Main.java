@@ -41,8 +41,8 @@ public class Main {
 
         try {
             final ProcessBuilder processBuilder = new ProcessBuilder(args);
-            processBuilder.redirectErrorStream(true);
-            processBuilder.redirectOutput(ProcessBuilder.Redirect.INHERIT);
+            processBuilder.inheritIO();
+
             final Process process = processBuilder.start();
 
             process.waitFor();
